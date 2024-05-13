@@ -155,7 +155,7 @@ class Spline:
 
                 for i in range(len(points) + 3, len(points) + 6):
                     knots[i] = knots[i - 1]
-                    spline.knots = knots
+                spline.knots = knots
             case cls.INTERPOLATION_CENTRIPETAL:
                 knots = Knots(len(points) + 6)
                 for i in range(4):
