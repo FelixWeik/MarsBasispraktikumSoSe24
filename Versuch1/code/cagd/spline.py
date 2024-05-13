@@ -1,12 +1,13 @@
 #! /usr/bin/python
 
 import math
+
+import numpy as np
 from cagd.vec import Vec2, Vec3
 from cagd.polyline import Polyline
 from cagd.bezier import BezierSurface, BezierPatches
 import cagd.utils as utils
 import copy
-
 
 class Spline:
     # Interpolation modes
@@ -59,7 +60,33 @@ class Spline:
     # Stops when the column is only "stop" elements long
     # Returns that column as a list
     def de_boor(self, t, stop):
-        assert False, "Function not implemented"
+        index = self.knots.knot_index(t)
+        points = []
+
+        if (index - self.degree) < 0 or index + 1 > len(self.control_points):
+            raise AssertionError("Index out of range")
+
+        for i in range(index - self.degree, index + 1):
+            points.append(self.control_points[i])
+
+        knot_vector = []
+        if (index - self.degree + 1) < 0 or index + self.degree + 1 > len(self.knots):
+            raise AssertionError("Index out of range")
+
+        for i in range(index - self.degree + 1, index + self.degree + 1):
+            knot_vector.append(self.knots[i])
+        k = 1
+        while points.__len__() > 1 and points.__len__() > stop:
+
+            next_points = []
+            for j in range(0, points.__len__() - 1):
+                alpha = (t - knot_vector[j + k - 1]) / (
+                            knot_vector[j + self.degree] - knot_vector[j + k - 1])
+                next_points.append((1 - alpha) * points[j] + alpha * points[j + 1])
+
+            points = next_points
+            k += 1
+        return points
 
     # Adjusts the control points such that it represents the same function,
     # but with an added knot
@@ -107,7 +134,86 @@ class Spline:
     # Returns that spline object
     @classmethod
     def interpolate_cubic(cls, mode, points, kts=None):
-        pass
+        spline = Spline(3)
+        match mode:
+            case cls.INTERPOLATION_GIVEN_KNOTS:
+                spline.knots = copy.deepcopy(kts)
+
+            case cls.INTERPOLATION_EQUIDISTANT:
+                knots = Knots(len(points) + 6)
+                for i in range(knots.knots.__len__()):
+                    knots[i] = np.clip(i - 3, 0, len(points) - 1)
+                spline.knots = knots
+            case cls.INTERPOLATION_CHORDAL:
+                knots = Knots(len(points) + 6)
+                for i in range(4):
+                    knots[i] = 0
+
+                for i in range(len(points) - 1):
+                    diff = points[i + 1] - points[i]
+                    knots[i + 4] = knots[i + 3] + math.sqrt(diff.dot(diff))
+
+                for i in range(len(points) + 3, len(points) + 6):
+                    knots[i] = knots[i - 1]
+                    spline.knots = knots
+            case cls.INTERPOLATION_CENTRIPETAL:
+                knots = Knots(len(points) + 6)
+                for i in range(4):
+                    knots[i] = 0
+
+                for i in range(len(points) - 1):
+                    diff = points[i + 1] - points[i]
+                    knots[i + 4] = knots[i + 3] + math.sqrt(math.sqrt(diff.dot(diff)))
+
+                for i in range(len(points) + 3, len(points) + 6):
+                    knots[i] = knots[i - 1]
+                spline.knots = knots
+
+        dim = len(points) + 2
+
+        alpha = []
+        beta = []
+        gamma = []
+        for i in range(2, dim - 2):
+            alpha.append((spline.knots[i + 2] - spline.knots[i]) / (spline.knots[i + 3] - spline.knots[i]))
+            beta.append((spline.knots[i + 2] - spline.knots[i + 1]) / (spline.knots[i + 3] - spline.knots[i + 1]))
+            gamma.append((spline.knots[i + 2] - spline.knots[i + 1]) / (spline.knots[i + 4] - spline.knots[i + 1]))
+
+        col1 = [0] * dim
+        col1[0] = 0
+        col1[1] = -1
+        col1[-1] = 0
+        col1[-2] = -1 + gamma[-1]
+
+        col2 = [0] * dim
+        col2[0] = 1
+        col2[1] = 1 + alpha[0]
+        col2[-1] = 1
+        col2[-2] = -gamma[-1] + 2
+
+        col3 = [0] * dim
+        col3[0] = 0
+        col3[1] = -alpha[0]
+        col3[-1] = 0
+        col3[-2] = -1
+
+        for i in range(2, dim - 2):
+            col1[i] = (1 - beta[i - 2]) * (1 - alpha[i - 2])
+            col2[i] = (1 - beta[i - 2]) * alpha[i - 2] + beta[i - 2] * (1 - gamma[i - 2])
+            col3[i] = beta[i - 2] * gamma[i - 2]
+
+        res = [Vec2(0, 0)] * dim
+        res[0] = points[0]
+        res[-1] = points[-1]
+
+        for i in range(2, dim - 2):
+            res[i] = points[i - 1]
+
+        spline.control_points = utils.solve_tridiagonal_equation(col1, col2, col3, res)
+
+        return spline
+
+
 
     # Generates a spline that interpolates the given points and fulfills the definition
     # of a periodic spline with equidistant knots
@@ -301,5 +407,26 @@ class Knots:
         self.knots.insert(i, t)
 
     def knot_index(self, v):
-        assert False, "Function not implemented"
-        return None
+
+        if self.knots is None or self.knots.__len__() == 0:
+            return None;
+
+        last = self.knots[-1]
+        if last < v:
+            return None
+
+        i = 0
+
+        if last == v:
+            while i < self.__len__() and self.knots[i] < v:
+                i += 1
+            if i > 0:
+                return i - 1
+            else:
+                return None
+
+        while i < self.__len__() and self.knots[i] <= v:
+            i += 1
+        if i < 1:
+            return None
+        return i - 1
