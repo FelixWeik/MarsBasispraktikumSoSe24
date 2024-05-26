@@ -220,7 +220,37 @@ class Spline:
     # Returns that spline object
     @classmethod
     def interpolate_cubic_periodic(cls, points):
-        pass
+        degree = 3
+        spline = Spline(degree)
+        spline.periodic = True
+
+        # Create a periodic knot vector with equidistant knots
+        knots = Knots(12)
+        for i in range(len(knots)):
+            knots[i] = i
+        spline.knots = knots
+
+        # Setting up the coefficients for the almost tridiagonal system
+        alpha = 1.0 / 6.0
+        beta = 4.0 / 6.0
+        gamma = 1.0 / 6.0
+
+        dim = len(points)
+
+        diag1 = [gamma] * dim
+        diag2 = [beta] * dim
+        diag3 = [alpha] * dim
+
+        res = [Vec2(0, 0)] * dim
+        for i in range(dim):
+            res[i] = points[i]
+
+        # Solving the almost tridiagonal system to get control points
+        spline.control_points = utils.solve_almost_tridiagonal_equation(diag1, diag2, diag3, res)
+        for i in range(degree):
+            spline.control_points.append(spline.control_points[i])
+
+        return spline
 
     # For splines of degree 3, generate a parallel spline with distance dist
     # The returned spline is off from the exact parallel by at most eps
