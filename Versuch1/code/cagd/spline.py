@@ -225,6 +225,7 @@ class Spline:
         for i in range(knots.knots.__len__()):
             knots[i] = i
         spline.knots = knots
+        spline.periodic = True
 
         dim = len(points)
 
