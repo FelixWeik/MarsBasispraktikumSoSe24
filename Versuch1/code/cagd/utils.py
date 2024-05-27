@@ -44,4 +44,35 @@ def solve_tridiagonal_equation(diag1, diag2, diag3, res):
 def solve_almost_tridiagonal_equation(diag1, diag2, diag3, res):
     assert (len(diag1) == len(diag2) == len(diag3) == len(res))
     solution = None
-    return solution
+
+    dim = len(res)
+
+    v = [0] * dim
+    y = [Vec2(0, 0)] * dim
+    s = [0] * dim
+
+    s[0] = 1
+
+    for i in range(1, dim):
+        z = 1 / (diag2[i - 1] + diag1[i - 1] * v[i - 1])
+        v[i] = -z * diag3[i - 1]
+        y[i] = z * (res[i - 1] - diag1[i - 1] * y[i - 1])
+        s[i] = -diag1[i - 1] * s[i - 1] * z
+
+    t = [0] * dim
+    w = [Vec2(0, 0)] * dim
+    t[-1] = 1
+
+    for i in range(dim - 2, -1, -1):
+        t[i] = v[i + 1] * t[i + 1] + s[i + 1]
+        w[i] = v[i + 1] * w[i + 1] + y[i + 1]
+
+    x_n = (res[-1] - diag3[-1] * w[0] - diag1[-1] * w[-2]) * (1.0 / (diag3[-1] * t[0] + diag1[-1] * t[-2] + diag2[-1]))
+
+    x = [Vec2(0, 0)] * dim
+    x[-1] = x_n
+
+    for i in range(dim - 2, -1, -1):
+        x[i] = t[i] * x_n + w[i]
+
+    return x
