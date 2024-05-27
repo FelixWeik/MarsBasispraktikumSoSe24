@@ -12,12 +12,15 @@ from test_utils_solve_almost_tridiagonal_equation import test_solve_almost_tridi
 # returns a list of num_samples points that are uniformly distributed on the unit circle
 def unit_circle_points(num_samples):
 
-    result = []
+    res = []
     for i in range(num_samples):
-        rel = i / num_samples
-        result.append(Vec2(math.cos(2 * math.pi * rel), math.sin(2 * math.pi * rel)))
+        rel = i / num_samples  # Calculate the normalized relative position
+        angle = 2 * math.pi * rel  # Compute the angle in radians
+        x = math.cos(angle)  # X-coordinate on the unit circle
+        y = math.sin(angle)  # Y-coordinate on the unit circle
+        res.append(Vec2(x, y))  # Append the point to the result list
 
-    return result
+    return res
 
 
 # calculates the deviation between the given spline and a unit circle
@@ -25,19 +28,22 @@ def calculate_circle_deviation(spline):
     samples = 100
     accError = 0
     maxError = 0
-    spline_len = len(spline.knots.knots) - 1 - 2 * spline.degree
+    spline_knot_len = len(spline.knots.knots) - 1 - 2 * spline.degree
     for i in range(samples):
         rel = i / samples
         rel_circ = (i + 1) / samples
         circle = Vec2(math.cos(2 * math.pi * rel_circ), math.sin(2 * math.pi * rel_circ))
         circle_len = math.sqrt(circle.dot(circle))
-        spline_vec = spline.evaluate(rel * spline_len * 8 + spline.degree)
+        spline_vec = spline.evaluate(rel * spline_knot_len + spline.degree)
         spline_len = math.sqrt(spline_vec.dot(spline_vec))
         error = circle_len - spline_len
         if math.fabs(error) > math.fabs(maxError):
             maxError = error
         accError += error
     medianError = accError / samples
+
+    print("Max Error: ", maxError)
+    print("Median Error: ", medianError)
 
 
 
