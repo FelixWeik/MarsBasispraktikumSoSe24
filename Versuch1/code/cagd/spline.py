@@ -287,7 +287,7 @@ class Spline:
                     para_points.append(res)
                 last = knot
 
-            para_spline = para_spline.interpolate_cubic(Spline.INTERPOLATION_CHORDAL, para_points, self.knots)
+            para_spline = para_spline.interpolate_cubic(Spline.INTERPOLATION_GIVEN_KNOTS, para_points, self.knots)
 
             if not not_accurate_enough:
                 return para_spline
