@@ -48,7 +48,28 @@ class Spline:
         return self.evaluate(t)
 
     def tangent(self, t):
-        pass
+        # same as evaluate() method #############################
+        a, b = self.support()
+        assert (a <= t <= b)
+        if t == self.knots[len(self.knots) - self.degree - 1]:
+            # the spline is only defined on the interval [a, b)
+            # it is useful to define self(b) as lim t->b self(t)
+            t = t - 0.000001
+        # ends here #############################################
+
+        # apply De Boor algorithm, to evaluate B-splines.
+        # return a list of 2 points that influence the spline at t.
+        pts = self.de_boor(t, 2)
+
+        # computes the difference between two points,
+        # giving a vector 'tangent_direction' that represents the direction of the tangent.
+        tangent_direction = pts[1] - pts[0]
+
+        # compute the length by using the dot product
+        length = math.sqrt(tangent_direction.dot(tangent_direction))
+
+        # we normalize the direction vector by dividing its components by its length.
+        return Vec2(tangent_direction.x / length, tangent_direction.y / length)
 
     def get_color(self):
         return self.color
