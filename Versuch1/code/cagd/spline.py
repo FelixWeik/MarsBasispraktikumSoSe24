@@ -111,8 +111,24 @@ class Spline:
 
     # Adjusts the control points such that it represents the same function,
     # but with an added knot
-    def insert_knot(self, t):
-        pass
+   def insert_knot(self, t):
+        # find the appropriate index in the knot vector where the new knot should be inserted.
+        index = self.knots.knot_index(t)
+
+        # compute new control points
+        new_control_points = self.de_boor(t, self.degree)
+
+        # determine the 1st point to be replaced
+        first_point = index - self.degree + 1
+
+        self.control_points = (
+            self.control_points[:first_point] # keep the initial control points
+            + new_control_points # add the new control points where they should be
+            + self.control_points[index:] # then add the remaining intial control points
+        )
+
+        # insert the node in sorted order.
+        self.knots.insert(t)
 
     def get_axis_aligned_bounding_box(self):
         min_vec = copy.copy(self.control_points[0])
