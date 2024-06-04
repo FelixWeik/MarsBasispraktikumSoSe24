@@ -105,9 +105,9 @@ class Spline:
         index = self.knots.knot_index(t)
         new_points = self.de_boor(t, self.degree)
         first_point = index - self.degree + 1
-        last_point = index
-        self.control_points = (self.control_points[0:first_point] + new_points
-                               + self.control_points[last_point:len(self.control_points)])
+
+        self.control_points = (self.control_points[:first_point] + new_points
+                               + self.control_points[index:])
         self.knots.insert(t)
         return
 
@@ -304,7 +304,6 @@ class Spline:
                 if knot != last:
                     test_point = (knot - last) / 2 + last
                     t = self.tangent(test_point)
-                    p = self.evaluate(test_point)
                     perfect = Vec2(-t.y, t.x) * dist + self.evaluate(test_point)
                     interpolated = para_spline.evaluate(test_point)
                     error = perfect - interpolated
