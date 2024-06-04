@@ -3,6 +3,7 @@
 import math
 
 import numpy as np
+
 from cagd.vec import Vec2, Vec3
 from cagd.polyline import Polyline
 from cagd.bezier import BezierSurface, BezierPatches
@@ -48,7 +49,17 @@ class Spline:
         return self.evaluate(t)
 
     def tangent(self, t):
-        pass
+        a, b = self.support()
+        assert (a <= t <= b)
+        if t == self.knots[len(self.knots) - self.degree - 1]:
+            # the spline is only defined on the interval [a, b)
+            # it is useful to define self(b) as lim t->b self(t)
+            t = t - 0.000001
+        pts = self.de_boor(t, 2)
+        dir = pts[1] - pts[0]
+
+        length = math.sqrt(dir.dot(dir))
+        return Vec2(dir.x / length, dir.y / length)
 
     def get_color(self):
         return self.color
@@ -91,7 +102,14 @@ class Spline:
     # Adjusts the control points such that it represents the same function,
     # but with an added knot
     def insert_knot(self, t):
-        pass
+        index = self.knots.knot_index(t)
+        new_points = self.de_boor(t, self.degree)
+        first_point = index - self.degree + 1
+
+        self.control_points = (self.control_points[:first_point] + new_points
+                               + self.control_points[index:])
+        self.knots.insert(t)
+        return
 
     def get_axis_aligned_bounding_box(self):
         min_vec = copy.copy(self.control_points[0])
@@ -250,8 +268,55 @@ class Spline:
         if dist == 0:
             return self
 
-        para_spline = None
-        return para_spline
+        not_accurate_enough = True
+
+        para_spline = Spline(self.degree)
+
+        para_points = []
+
+        while True:
+
+            para_spline.knots = self.knots
+
+            para_points = []
+
+            last = None
+            for knot in self.knots:
+                if knot != last:
+                    t = self.tangent(knot)
+                    res = Vec2(-t.y, t.x) * dist + self.evaluate(knot)
+                    para_points.append(res)
+                last = knot
+
+            para_spline = para_spline.interpolate_cubic(Spline.INTERPOLATION_GIVEN_KNOTS, para_points, self.knots)
+
+            if not not_accurate_enough:
+                return para_spline
+
+            para_spline.knots = self.knots
+
+            new_knots = []
+
+            last = self.knots[0]
+
+            not_accurate_enough = False
+
+            for knot in self.knots:
+                if knot != last:
+                    test_point = (knot - last) / 2 + last
+                    t = self.tangent(test_point)
+                    perfect = Vec2(-t.y, t.x) * dist + self.evaluate(test_point)
+                    interpolated = para_spline.evaluate(test_point)
+                    error = perfect - interpolated
+                    f_error = math.sqrt(error.dot(error))
+                    if f_error > eps:
+                        new_knots.append(test_point)
+                        not_accurate_enough = True
+                last = knot
+
+            for knot in new_knots:
+                self.insert_knot(knot)
+
 
     # Generates a rotational surface by rotating the spline around the z axis
     # the spline is assumed to be on the xz-plane
