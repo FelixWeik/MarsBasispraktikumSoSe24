@@ -1,6 +1,5 @@
 #!/usr/bin/python
 
-from cagd.polyline import Polyline
 from cagd.spline import Spline, Knots
 from cagd.vec import Vec2
 import cagd.scene_2d as scene_2d
