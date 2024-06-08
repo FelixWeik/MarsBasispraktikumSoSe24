@@ -10,6 +10,7 @@ from cagd.bezier import BezierSurface, BezierPatches
 import cagd.utils as utils
 import copy
 
+
 class Spline:
     # Interpolation modes
     INTERPOLATION_GIVEN_KNOTS = 0
@@ -92,7 +93,7 @@ class Spline:
             next_points = []
             for j in range(0, points.__len__() - 1):
                 alpha = (t - knot_vector[j + k - 1]) / (
-                            knot_vector[j + self.degree] - knot_vector[j + k - 1])
+                        knot_vector[j + self.degree] - knot_vector[j + k - 1])
                 next_points.append((1 - alpha) * points[j] + alpha * points[j + 1])
 
             points = next_points
@@ -231,8 +232,6 @@ class Spline:
 
         return spline
 
-
-
     # Generates a spline that interpolates the given points and fulfills the definition
     # of a periodic spline with equidistant knots
     # Returns that spline object
@@ -247,7 +246,7 @@ class Spline:
 
         dim = len(points)
 
-        diag1 = [1.0/6.0] * dim
+        diag1 = [1.0 / 6.0] * dim
         diag2 = [4.0 / 6.0] * dim
         diag3 = [1.0 / 6.0] * dim
 
@@ -317,13 +316,37 @@ class Spline:
             for knot in new_knots:
                 self.insert_knot(knot)
 
-
     # Generates a rotational surface by rotating the spline around the z axis
     # the spline is assumed to be on the xz-plane
     # num_samples refers to the number of interpolation points in the rotational direction
     # Returns a spline surface object in three dimensions
     def generate_rotation_surface(self, num_samples):
-        pass
+        assert num_samples > 3, "num_samples must be greater than three"
+        splines = [] * len(self.control_points)
+
+        # Create new periodic splines
+        for i in range(len(splines)):
+            cur_point = self.control_points[i]
+            new_points = []
+            for j in range(num_samples):
+                x_rot = cur_point.x * math.cos(2*np.pi*j / num_samples)
+                y_rot = cur_point.x * math.sin(2*np.pi*j / num_samples)
+                z_rot = cur_point.y
+                new_point = Vec3(x_rot, y_rot, z_rot)
+                new_points.append(new_point)
+            spline_rot = self.interpolate_cubic_periodic(new_points)
+            spline_rot.knots = copy.deepcopy(self.knots)
+            spline_rot.periodic = True
+            splines[i] = spline_rot
+
+        degree_rot = (len(self.control_points), num_samples)
+        spline_rot = SplineSurface(degree_rot)
+        spline_rot.knots = (self.knots, list(range(num_samples)))
+
+        for i in range(len(splines)):
+            spline_rot.control_points.append(splines[i].control_points)
+
+        return spline_rot
 
 
 class SplineSurface:
