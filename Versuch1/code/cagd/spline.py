@@ -303,8 +303,38 @@ class Spline:
     # the spline is assumed to be on the xz-plane
     # num_samples refers to the number of interpolation points in the rotational direction
     # Returns a spline surface object in three dimensions
-    def generate_rotation_surface(self, num_samples):
-        pass
+   def generate_rotation_surface(self, num_samples):
+        assert (num_samples > 3)
+
+        # get the original control points
+        original_control_points = self.control_points
+
+        # rotation
+        r = (len(original_control_points), num_samples)
+        # create the surface
+        rotation_surface = SplineSurface(r)
+        rotation_surface.knots = (self.knots, list(range(num_samples)))
+        
+        # for each original control point
+        for point in original_control_points:
+            rotated_points = []
+            # for each interpolation points
+            for j in range(num_samples):
+                xi, zi = point.x, point.z
+
+                angle = 2 * math.pi * j / num_samples
+                # rotate alon the z-axis
+                x = xi * math.cos(angle)
+                y = xi * math.sin(angle)
+                rotated_points.append(Vec3(x, y, zi))
+
+            rotated_spline = self.interpolate_cubic_periodic(rotated_points)
+            rotated_spline.knots = copy.deepcopy(self.knots)
+            rotated_spline.periodic = True
+
+            rotation_surface.control_points.append(rotated_spline.control_points)
+
+        return rotation_surface
 
 
 class SplineSurface:
