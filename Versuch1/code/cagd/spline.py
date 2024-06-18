@@ -106,7 +106,6 @@ class Spline:
         if self.periodic:
 
             new_knots = Knots(0)
-            old_knots = copy.deepcopy(self.knots)
             knots_copy = copy.deepcopy(self.knots.knots)
             mid = knots_copy[self.knots.knot_index(self.degree - 1) + 1:self.knots.knot_index(self.knots[-1] - self.degree - 1) + 1]
             front = knots_copy[:self.knots.knot_index(self.knots[-1] - self.degree - 1) + 1]
@@ -115,21 +114,14 @@ class Spline:
             back = [x + mid[-1] - self.degree + 1 for x in back]
             new_knots.knots = front + mid + back
 
-            temp0 = self.evaluate(3)
-            temp1 = self.evaluate(11)
-
             self.knots = new_knots
 
-            control_point_overlap = self.degree + (len(mid) - (mid[-1] - mid[0]) - 1)   #old_knots.knot_index(self.degree)
+            control_point_overlap = self.degree + (len(mid) - (mid[-1] - mid[0]) - 1)
 
             old_ctr_pts = copy.deepcopy(self.control_points)
-            test = old_knots.knot_index(self.degree)
             self.control_points = (self.control_points[:-control_point_overlap]
                                    + self.control_points[:-control_point_overlap]
                                    + self.control_points)
-
-            temp2 = self.evaluate(3)
-            temp3 = self.evaluate(11)
 
             index = self.knots.knot_index(t)
             new_points = self.de_boor(t, self.degree)
@@ -137,9 +129,6 @@ class Spline:
 
             self.control_points = (self.control_points[:first_point] + new_points + self.control_points[index:])
             self.knots.insert(t)
-
-            temp4 = self.evaluate(3)
-            temp5 = self.evaluate(11)
 
             if index < len(self.knots):
                 index = index + len(mid) + 1
@@ -156,19 +145,11 @@ class Spline:
                 self.control_points = (self.control_points[:first_point] + new_points + self.control_points[index:])
                 self.knots.insert(t - mid[-1] + mid[0] - 1)
 
-            temp6 = self.evaluate(3)
-            temp7 = self.evaluate(11)
-
             knots_start = self.knots.knot_index(mid[0] - self.degree - 1) + 1
             knots_end = self.knots.knot_index(mid[-1] + self.degree + 1) + 1
             self.knots.knots = self.knots.knots[knots_start:knots_end]
             self.control_points = self.control_points[len(old_ctr_pts) - control_point_overlap
                                                       :-(len(old_ctr_pts) - control_point_overlap)]
-
-            temp8 = self.evaluate(3)
-            temp9 = self.evaluate(11)
-
-            print("test")
         else:
 
             index = self.knots.knot_index(t)
