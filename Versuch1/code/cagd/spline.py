@@ -102,13 +102,81 @@ class Spline:
     # Adjusts the control points such that it represents the same function,
     # but with an added knot
     def insert_knot(self, t):
-        index = self.knots.knot_index(t)
-        new_points = self.de_boor(t, self.degree)
-        first_point = index - self.degree + 1
 
-        self.control_points = (self.control_points[:first_point] + new_points
-                               + self.control_points[index:])
-        self.knots.insert(t)
+        if self.periodic:
+
+            new_knots = Knots(0)
+            old_knots = copy.deepcopy(self.knots)
+            knots_copy = copy.deepcopy(self.knots.knots)
+            mid = knots_copy[self.knots.knot_index(self.degree - 1) + 1:self.knots.knot_index(self.knots[-1] - self.degree - 1) + 1]
+            front = knots_copy[:self.knots.knot_index(self.knots[-1] - self.degree - 1) + 1]
+            front = [x - front[-1] + self.degree - 1 for x in front]
+            back = knots_copy[self.knots.knot_index(self.degree - 1) + 1:]
+            back = [x + mid[-1] - self.degree + 1 for x in back]
+            new_knots.knots = front + mid + back
+
+            temp0 = self.evaluate(3)
+            temp1 = self.evaluate(11)
+
+            self.knots = new_knots
+
+            control_point_overlap = self.degree + (len(mid) - (mid[-1] - mid[0]) - 1)   #old_knots.knot_index(self.degree)
+
+            old_ctr_pts = copy.deepcopy(self.control_points)
+            test = old_knots.knot_index(self.degree)
+            self.control_points = (self.control_points[:-control_point_overlap]
+                                   + self.control_points[:-control_point_overlap]
+                                   + self.control_points)
+
+            temp2 = self.evaluate(3)
+            temp3 = self.evaluate(11)
+
+            index = self.knots.knot_index(t)
+            new_points = self.de_boor(t, self.degree)
+            first_point = index - self.degree + 1
+
+            self.control_points = (self.control_points[:first_point] + new_points + self.control_points[index:])
+            self.knots.insert(t)
+
+            temp4 = self.evaluate(3)
+            temp5 = self.evaluate(11)
+
+            if index < len(self.knots):
+                index = index + len(mid) + 1
+
+                first_point = index - self.degree + 1
+
+                self.control_points = (self.control_points[:first_point] + new_points + self.control_points[index:])
+                self.knots.insert(t + mid[-1] - mid[0] + 1)
+            else:
+                index = index - len(mid)
+
+                first_point = index - self.degree + 1
+
+                self.control_points = (self.control_points[:first_point] + new_points + self.control_points[index:])
+                self.knots.insert(t - mid[-1] + mid[0] - 1)
+
+            temp6 = self.evaluate(3)
+            temp7 = self.evaluate(11)
+
+            knots_start = self.knots.knot_index(mid[0] - self.degree - 1) + 1
+            knots_end = self.knots.knot_index(mid[-1] + self.degree + 1) + 1
+            self.knots.knots = self.knots.knots[knots_start:knots_end]
+            self.control_points = self.control_points[len(old_ctr_pts) - control_point_overlap
+                                                      :-(len(old_ctr_pts) - control_point_overlap)]
+
+            temp8 = self.evaluate(3)
+            temp9 = self.evaluate(11)
+
+            print("test")
+        else:
+
+            index = self.knots.knot_index(t)
+            new_points = self.de_boor(t, self.degree)
+            first_point = index - self.degree + 1
+
+            self.control_points = (self.control_points[:first_point] + new_points + self.control_points[index:])
+            self.knots.insert(t)
         return
 
     def get_axis_aligned_bounding_box(self):
@@ -322,7 +390,33 @@ class Spline:
     # num_samples refers to the number of interpolation points in the rotational direction
     # Returns a spline surface object in three dimensions
     def generate_rotation_surface(self, num_samples):
-        pass
+
+        if num_samples <= 3:
+            return None
+
+        ctr_pts_num = len(self.control_points)
+        ctr_pts_res = [[] for y in range(ctr_pts_num)]
+
+        circle_knots = Knots(0)
+
+        for i in range(ctr_pts_num):
+            points = [Vec2(0, 0)] * num_samples
+            for j in range(num_samples):
+                rel_rot = (2 * math.pi * j) / num_samples
+                points[j] = Vec2(self.control_points[i].x * math.cos(rel_rot),
+                                 self.control_points[i].x * math.sin(rel_rot))
+
+            circle = self.interpolate_cubic_periodic(points)
+            circle_knots = circle.knots
+            for j in range(len(circle.control_points)):
+                ctr_pts_res[i].append(Vec3(circle.control_points[j].x, circle.control_points[j].y,
+                                           self.control_points[i].y))
+
+        result = SplineSurface((self.degree, self.degree))
+        result.knots = (self.knots, circle_knots)
+        result.periodic = (self.periodic, True)
+        result.control_points = ctr_pts_res
+        return result
 
 
 class SplineSurface:
@@ -450,7 +544,58 @@ class SplineSurface:
     # Build bezier patches based on the spline with multiple knots
     # and control points sitting also as bezier points.
     def to_bezier_patches(self):
+
+
+        du, dv = self.degree
+
+        # v knots
+        multi = 0
+        last = self.knots[1][0]
+        i = 0
+        while i < len(self.knots[1]):
+            if self.knots[1][i] == last:
+                multi += 1
+                i += 1
+            else:
+                if multi < dv:
+                    self._insert_knot_v(last)
+                else:
+                    last = self.knots[1][i]
+                    multi = 1
+                    i += 1
+
+        # u knots
+        multi = 0
+        last = self.knots[0][0]
+        i = 0
+        while i < len(self.knots[0]):
+            if self.knots[0][i] == last:
+                multi += 1
+                i += 1
+            else:
+                if multi < du:
+                    self._insert_knot_u(last)
+                else:
+                    last = self.knots[0][i]
+                    multi = 1
+                    i += 1
+
+
+
         patches = BezierPatches()
+        for i in range(len(self.control_points) - 1):
+            if i % du == 0:
+                for j in range(len(self.control_points[i]) - 1):
+                    if j % dv == 0:
+                        surface = BezierSurface((du, dv))
+                        for dui in range(du + 1):
+                            for dvi in range(dv + 1):
+                                u = i + dui if i + dui < len(self.control_points) else 0
+                                v = j + dvi if j + dvi < len(self.control_points[0]) else 0
+                                surface.set_control_point(dui, dvi, self.control_points[u][v])
+                        patches.append(surface)
+
+
         return patches
 
 
