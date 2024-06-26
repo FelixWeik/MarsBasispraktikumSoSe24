@@ -117,7 +117,7 @@ class BezierSurface:
 
     # Sets the colors at the corners
     # c00 is the color at u=v=0, c01 is the color at u=0 v=1, etc.
-    # A color is a tuple (r,g,b) with values between 0 an 1
+    # A color is a tuple (r,g,b) with values between 0 an 1f
     def set_colors(self, c00, c01, c10, c11):
         self.color = (c00, c01, c10, c11)
 
@@ -238,7 +238,119 @@ class BezierPatches:
     def visualize_curvature(self, curvature_mode, color_map):
         # Calculate curvatures at each corner point
         # Set colors according to color map
-        pass
+        assert curvature_mode >= 0 and curvature_mode < 4, "curvature_mode must be between 0 and 4"
+        assert color_map >= 4 and color_map < 7, "color_map must be between 4 and 7"
+
+        corner_indices = [
+            (0,0),
+            (0,-1),
+            (-1,0),
+            (-1,-1)
+        ]
+
+        for patch in self.patches:
+            derived_u = self.derive_u(patch.control_points)
+            derived_v = self.derive_v(patch.control_points)
+            derived_uu = self.derive_u(derived_u)
+            derived_vv = self.derive_v(derived_v)
+            derived_uv = self.derive_u(derived_u)
+
+            curvatures = []
+
+            for corner in corner_indices:
+                E = Vec3.dot(derived_u[corner[0]][corner[1]], derived_u[corner[0]][corner[1]])
+                F = Vec3.dot(derived_u[corner[0]][corner[1]], derived_v[corner[0]][corner[1]])
+                G = Vec3.dot(derived_v[corner[0]][corner[1]], derived_v[corner[0]][corner[1]])
+
+                n = Vec3.dot(derived_u[corner[0]][corner[1]], derived_v[corner[0]][corner[1]])
+                n_length = abs(n)
+                N = n / n_length
+
+                e = Vec3.dot(N, derived_uu[corner[0]][corner[1]])
+                f = Vec3.dot(N, derived_uv[corner[0]][corner[1]])
+                g = Vec3.dot(N, derived_vv[corner[0]][corner[1]])
+
+                if curvature_mode == self.CURVATURE_GAUSSIAN:
+                    curvature = (e*g - f*f) / (E*G - F*F)
+                    curvatures.append(curvature)
+                elif curvature_mode == self.CURVATURE_PRINCIPAL_MAX:
+                    curvature = 0.5 * ((e*g - 2 * f * F + g * E) / (E*G - F*F))
+                    curvatures.append(curvature)
+                elif curvature_mode == self.CURVATURE_PRINCIPAL_MIN:
+                    pass
+                elif curvature_mode == self.CURVATURE_PRINCIPAL_MAX:
+                    pass
+
+            patch.set_curvature(curvatures[0], curvatures[1], curvatures[2], curvatures[3])
+
+            colors = []
+
+            for i in range(len(corner_indices)):
+                color = self.get_color(curvatures[i], color_map)
+                colors.append(color)
+
+            patch.set_color(colors[0], colors[1], colors[2], colors[3])
+
+
+    def get_color(self, curvature_mode, curvature, k_min = 0, k_max = 1):
+        if curvature_mode == self.COLOR_MAP_CUT:
+            x = 0
+
+            if curvature < 0:
+                x = 0
+            elif 0 <= curvature <= 1:
+                x = curvature
+            else:
+                x = 1
+        elif curvature_mode == self.COLOR_MAP_LINEAR:
+            if k_min is None or k_max is None:
+                raise ValueError("k_max and k_min need to be specified")
+            if k_max == k_min:
+                raise ValueError("k_max must be != k_min")
+            x = (curvature - k_min) / (k_max - k_min)
+        elif curvature_mode == self.COLOR_MAP_CLASSIFICATION:
+            if curvature < 0:
+                x = 0
+            elif curvature == 0:
+                x = 0.5
+            else:
+                x = 1
+        else:
+            raise ValueError("hoppla")
+
+
+        if 0.00 <= x <= 0.25:
+            return (0, 4 * x, 1)
+        elif 0.25 < x <= 0.50:
+            return (0, 1, 2 - 4 * x)
+        elif 0.50 < x <= 0.75:
+            return (4 * x - 2, 1, 0)
+        elif 0.75 < x <= 1.00:
+            return (1, 4 - 4 * x, 0)
+        else:
+            raise ValueError("hoppla")
+
+
+
+
+    def derive_u(self, bezier_net):
+        #  expects bezier_net to be an array of arrays of control points [[b:control_point]]
+        derived_net = [[Vec3] * (len(bezier_net) - 1) for _ in range(len(bezier_net[0]))]  # eine spalte fällt beim ableiten weg
+        for u in range(len(bezier_net)):
+            for v in range(len(bezier_net[u]) - 1):
+                derived_net[u][v] = bezier_net[u][v + 1] - bezier_net[u][v]
+
+        return derived_net
+
+    def derive_v(self, bezier_net):
+        #  expects bezier_net to be an array of arrays of control points [[b:control_point]]
+        derived_net = [[Vec3] * len(bezier_net) for _ in range(len(bezier_net[0]) - 1)]  # eine zeile fällt beim ableiten weg
+        for u in range(len(bezier_net) - 1):
+            for v in range(len(bezier_net[u])):
+                derived_net[u][v] = bezier_net[u + 1][v] - bezier_net[u][v]
+
+        return derived_net
+
 
     def export_off(self):
         def export_point(p):
