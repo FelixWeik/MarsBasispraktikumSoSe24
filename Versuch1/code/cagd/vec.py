@@ -53,6 +53,17 @@ class Vec3:
     def __copy__(self):
         return Vec3(self.x, self.y, self.z)
 
+    def cross(self, other):
+        return Vec3(self.y * other.z - self.z * other.y, self.z * other.x - self.x * other.z,
+                    self.x * other.y - self.y * other.x)
+
+    def length(self):
+        return math.sqrt(self.dot(self))
+
+    def div(self, scalar):
+        return Vec3(self.x / scalar, self.y / scalar, self.z / scalar)
+
+
 
 class Vec2:
     def __init__(self, a, b):
@@ -103,3 +114,6 @@ class Vec2:
 
     def __copy__(self):
         return Vec2(self.x, self.y)
+
+    def cross(self, other):
+        return self.x * other.y - self.y * other.x

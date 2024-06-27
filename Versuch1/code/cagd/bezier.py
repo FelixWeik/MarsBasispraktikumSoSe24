@@ -1,4 +1,7 @@
 #!/usr/bin/python
+import math
+
+import numpy as np
 
 from cagd.vec import Vec2, Vec3
 from cagd.polyline import Polyline
@@ -236,9 +239,118 @@ class BezierPatches:
             self.patches = new_patches
 
     def visualize_curvature(self, curvature_mode, color_map):
+
+        corners = [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+        max_curve = float('-inf')
+        min_curve = float('inf')
+
+        for patch in self.patches:
+
+            m = patch.degree[0]
+            n = patch.degree[1]
+
+            bu = BezierSurface([m - 1, n])
+            bv = BezierSurface([m, n - 1])
+
+            for i in range(m):
+                for j in range(n + 1):
+                    bu.control_points[i][j] = (patch.control_points[i + 1][j] - patch.control_points[i][j]) * m
+                    bv.control_points[j][i] = (patch.control_points[j][i + 1] - patch.control_points[j][i]) * n
+
+            buu = BezierSurface([m - 2, n])
+            buv = BezierSurface([m - 1, n - 1])
+            bvv = BezierSurface([m, n - 2])
+
+            for i in range(m - 1):
+                for j in range(n + 1):
+                    buu.control_points[i][j] = (bu.control_points[i + 1][j] - bu.control_points[i][j]) * (m - 1)
+                    bvv.control_points[j][i] = (bv.control_points[j][i + 1] - bv.control_points[j][i]) * (n - 1)
+
+            for i in range(m):
+                for j in range(n):
+                    buv.control_points[i][j] = (bv.control_points[i + 1][j] - bv.control_points[i][j]) * (m - 1)
+
+            curvatures = [0] * 4
+            corner = 0
+            for (c1, c2) in corners:
+                bu_corner: Vec3 = bu.control_points[c1 * bu.degree[0]][c2 * bu.degree[1]]
+                bv_corner: Vec3 = bv.control_points[c1 * bv.degree[0]][c2 * bv.degree[1]]
+                buu_corner = buu.control_points[c1 * buu.degree[0]][c2 * buu.degree[1]]
+                buv_corner = buv.control_points[c1 * buv.degree[0]][c2 * buv.degree[1]]
+                bvv_corner = bvv.control_points[c1 * bvv.degree[0]][c2 * bvv.degree[1]]
+
+                N = bu_corner.cross(bv_corner).div(bu_corner.cross(bv_corner).length())
+
+                E = bu_corner.dot(bu_corner)
+                F = bu_corner.dot(bv_corner)
+                G = bv_corner.dot(bv_corner)
+
+                e = N.dot(buu_corner)
+                f = N.dot(buv_corner)
+                g = N.dot(bvv_corner)
+
+                K = (e * g - f * f) / (E * G - F * F)
+                H = 0.5 * (e * G - 2 * f * F + g * E) / (E * G - F * F)
+
+                k1 = H + math.sqrt(H * H - K)
+                k2 = H - math.sqrt(H * H - K)
+
+                if curvature_mode == self.CURVATURE_GAUSSIAN:
+                    curvatures[corner] = (e * g - f * f) / (E * G - F * F)
+                elif curvature_mode == self.CURVATURE_AVERAGE:
+                    curvatures[corner] = 0.5 * (e * G - 2 * f * F + g * E) / (E * G - F * F)
+                elif curvature_mode == self.CURVATURE_PRINCIPAL_MAX:
+                    curvatures[corner] = max(k1, k2)
+                elif curvature_mode == self.CURVATURE_PRINCIPAL_MIN:
+                    curvatures[corner] = min(k1, k2)
+
+                if curvatures[corner] > max_curve:
+                    max_curve = curvatures[corner]
+
+                if curvatures[corner] < min_curve:
+                    min_curve = curvatures[corner]
+
+                corner += 1
+
+            patch.set_curvature(curvatures[0], curvatures[1], curvatures[2], curvatures[3])
+
+        for patch in self.patches:
+
+            colors = [(0, 0, 0)] * 4
+            corner = 0
+
+            for (c1, c2) in corners:
+                color_curve_value = 0
+
+                x = patch.curvature[corner]
+                if color_map == self.COLOR_MAP_CUT:
+                    color_curve_value = min(1, max(0, x))
+                elif color_map == self.COLOR_MAP_LINEAR:
+                    color_curve_value = (x - min_curve) / (max_curve - min_curve)
+                    print(color_curve_value)
+                elif color_map == self.COLOR_MAP_CLASSIFICATION:
+                    color_curve_value = 0 if x < -0.0001 else (1 if x > 0.0001 else 0.5)
+
+                colors[corner] = BezierPatches.color_interpolate(color_curve_value)
+                corner += 1
+
+            patch.set_colors(colors[0], colors[1], colors[2], colors[3])
+
         # Calculate curvatures at each corner point
         # Set colors according to color map
-        pass
+
+
+    @staticmethod
+    def color_interpolate(value):
+        if 0 <= value <= 0.25:
+            return 0, 4 * value, 1
+        elif 0.25 < value <= 0.5:
+            return 0, 1, 2 - 4 * value
+        elif 0.5 < value <= 0.75:
+            return 4 * value - 2, 1, 0
+        elif 0.75 < value <= 1:
+            return 1, 4 - 4 * value, 0
 
     def export_off(self):
         def export_point(p):
