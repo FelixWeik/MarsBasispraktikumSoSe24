@@ -25,7 +25,7 @@ def unit_circle_points(num_samples):
 
 # calculates the deviation between the given spline and a unit circle
 def calculate_circle_deviation(spline):
-    samples = 100
+    samples = 8
     accError = 0
     maxError = 0
     spline_knot_len = len(spline.knots.knots) - 1 - 2 * spline.degree
@@ -65,8 +65,8 @@ p = s.get_polyline_from_control_points()
 p.set_color("blue")
 sc = scene.Scene()
 sc.set_resolution(900)
-sc.add_element(s)
-sc.add_element(p)
+#sc.add_element(s)
+#sc.add_element(p)
 
 # generate a spline that approximates the unit circle
 n = 8
@@ -74,6 +74,18 @@ circle_pts = unit_circle_points(n)
 circle = Spline.interpolate_cubic_periodic(circle_pts)
 sc.add_element(circle)
 calculate_circle_deviation(circle)
+circle.periodic = True
+q = circle.get_polyline_from_control_points()
+for i in range(0, 8):
+    circle.insert_knot(i)
+    circle.insert_knot(i)
+
+
+p = circle.get_polyline_from_control_points()
+p.set_color("blue")
+q.set_color("red")
+sc.add_element(p)
+sc.add_element(q)
 
 sc.write_image()
 sc.show()

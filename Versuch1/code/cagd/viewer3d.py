@@ -51,7 +51,7 @@ class Viewer3d:
         vertices, faces, colors = self.get_data(obj.patches)
         mesh = pv.PolyData(np.array([[v[0] + offset.x, v[1] + offset.y, v[2] + offset.z] for v in vertices]),
                            np.array(faces))
-        mesh.add_field_data(np.array(colors), "colors")
+        mesh.cell_data["colors"] = np.array(colors)
         self.p.add_mesh(mesh, show_edges=True, line_width=1, scalars="colors", preference='cell', rgb=True)
 
     # Only works after implementing normals in task 5
