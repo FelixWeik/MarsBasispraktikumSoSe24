@@ -235,9 +235,98 @@ class BezierPatches:
                     new_patches.append(n)
             self.patches = new_patches
 
-    def visualize_curvature(self, curvature_mode, color_map):
+   def visualize_curvature(self, curvature_mode, color_map):
         # Calculate curvatures at each corner point
-        # Set colors according to color map
+        for patch in self.patches:
+            corners = [(0, 0), (0, 1), (1, 0), (1, 1)]
+            derivatives = {}
+            for (u, v) in corners:
+                bu = patch.get_derivative('u')
+                bv = patch.get_derivative('v')
+                buu = bu.get_derivative('u')
+                buv = bu.get_derivative('v')
+                bvv = bv.get_derivative('v')
+                derivatives[(u, v)] = (bu, bv, buu, buv, bvv)
+            
+            curvatures = {}
+            for (u, v) in corners:
+                bu, bv, buu, buv, bvv = derivatives[(u, v)]
+                E = Vec3.dot(bu, bu)
+                F = Vec3.dot(bu, bv)
+                G = Vec3.dot(bv, bv)
+                n = Vec3.dot(bu, bv)
+                n = n/abs(n) # normal
+                L = Vec3.dot(buu, n)
+                M = Vec3.dot(buv, n)
+                N = Vec3.dot(bvv, n)
+
+                gaussian_curvature = (L * N - M ** 2) / (E * G - F ** 2)
+                mean_curvature = (E * N + G * L - 2 * F * M) / (2 * (E * G - F ** 2))
+                principal_curvature_max = mean_curvature + (mean_curvature ** 2 - gaussian_curvature) ** 0.5
+                principal_curvature_min = mean_curvature - (mean_curvature ** 2 - gaussian_curvature) ** 0.5
+
+            if curvature_mode == self.CURVATURE_GAUSSIAN:
+                curvature_value = gaussian_curvature
+            elif curvature_mode == self.CURVATURE_AVERAGE:
+                curvature_value = mean_curvature
+            elif curvature_mode == self.CURVATURE_PRINCIPAL_MAX:
+                curvature_value = principal_curvature_max
+            elif curvature_mode == self.CURVATURE_PRINCIPAL_MIN:
+                curvature_value = principal_curvature_min
+            else:
+                raise ValueError("Unknown curvature mode")
+            
+            curvatures[(u, v)] = curvature_value
+            patch.bezier_surface.set_curvature(curvatures[0], curvatures[1], curvatures[2], curvatures[3])
+
+            # Set colors according to color map
+            for (u, v), curvature_value in curvatures.items():
+                if color_map == self.COLOR_MAP_LINEAR:
+                    color_value = self.f1(curvature_value)
+                elif color_map == self.COLOR_MAP_CUT:
+                    color_value = self.f2(curvature_value, min(curvatures.values()), max(curvatures.values()))
+                elif color_map == self.COLOR_MAP_CLASSIFICATION:
+                    color_value = self.f3(curvature_value)
+                else:
+                    raise ValueError("Unknown color map")
+                
+                patch.set_color(u, v, color_value)
+
+    def f1(self, curvature_value):
+        normalized_curvature = (curvature_value - min(curvature_value.values())) / (max(curvature_value.values()) - min(curvature_value.values()))
+        r = int(255 * normalized_curvature)
+        b = int(255 * (1 - normalized_curvature))
+        color = (r, 0, b)
+        return color
+
+def get_derivative(self, direction):
+        if direction not in ['u', 'v']:
+            raise ValueError("Invalid direction. Use 'u' or 'v'.")
+
+        n = len(self.control_points) - 1 
+        derivative_control_points = []
+
+        if direction == 'u':
+            for i in range(n):
+                row = []
+                for j in range(len(self.control_points[i])):
+                    du = n * (self.control_points[i + 1][j] - self.control_points[i][j])
+                    row.append(du)
+                derivative_control_points.append(row)
+        elif direction == 'v':
+            for i in range(len(self.control_points)):
+                row = []
+                for j in range(n):
+                    dv = n * (self.control_points[i][j + 1] - self.control_points[i][j])
+                    row.append(dv)
+                derivative_control_points.append(row)
+
+        return derivative_control_points
+
+        def f2(self, curvature_value):
+        pass
+
+    def f3(self, curvature_value):
         pass
 
     def export_off(self):
