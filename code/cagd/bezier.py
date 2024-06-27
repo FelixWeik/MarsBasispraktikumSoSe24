@@ -249,11 +249,11 @@ class BezierPatches:
         ]
 
         for patch in self.patches:
-            derived_u = self.derive_u(patch.control_points)
-            derived_v = self.derive_v(patch.control_points)
-            derived_uu = self.derive_u(derived_u)
-            derived_vv = self.derive_v(derived_v)
-            derived_uv = self.derive_u(derived_u)
+            derived_u = self.derive_u(patch.control_points, patch.degree[0])
+            derived_v = self.derive_v(patch.control_points, patch.degree[1])
+            derived_uu = self.derive_u(derived_u, patch.degree[0])
+            derived_vv = self.derive_v(derived_v, patch.degree[1])
+            derived_uv = self.derive_u(derived_u, patch.degree[0])
 
             curvatures = []
 
@@ -273,7 +273,7 @@ class BezierPatches:
                 if curvature_mode == self.CURVATURE_GAUSSIAN:
                     curvature = (e*g - f*f) / (E*G - F*F)
                     curvatures.append(curvature)
-                elif curvature_mode == self.CURVATURE_PRINCIPAL_MAX:
+                elif curvature_mode == self.CURVATURE_AVERAGE:
                     curvature = 0.5 * ((e*g - 2 * f * F + g * E) / (E*G - F*F))
                     curvatures.append(curvature)
                 elif curvature_mode == self.CURVATURE_PRINCIPAL_MIN:
@@ -333,21 +333,21 @@ class BezierPatches:
 
 
 
-    def derive_u(self, bezier_net):
+    def derive_u(self, bezier_net, m):
         #  expects bezier_net to be an array of arrays of control points [[b:control_point]]
         derived_net = [[Vec3] * (len(bezier_net) - 1) for _ in range(len(bezier_net[0]))]  # eine spalte fällt beim ableiten weg
         for u in range(len(bezier_net)):
             for v in range(len(bezier_net[u]) - 1):
-                derived_net[u][v] = bezier_net[u][v + 1] - bezier_net[u][v]
+                derived_net[u][v] = (bezier_net[u][v + 1] - bezier_net[u][v]) * m
 
         return derived_net
 
-    def derive_v(self, bezier_net):
+    def derive_v(self, bezier_net, n):
         #  expects bezier_net to be an array of arrays of control points [[b:control_point]]
         derived_net = [[Vec3] * len(bezier_net) for _ in range(len(bezier_net[0]) - 1)]  # eine zeile fällt beim ableiten weg
         for u in range(len(bezier_net) - 1):
             for v in range(len(bezier_net[u])):
-                derived_net[u][v] = bezier_net[u + 1][v] - bezier_net[u][v]
+                derived_net[u][v] = (bezier_net[u + 1][v] - bezier_net[u][v]) * n
 
         return derived_net
 
