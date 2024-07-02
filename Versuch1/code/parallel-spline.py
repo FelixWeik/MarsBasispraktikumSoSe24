@@ -10,8 +10,8 @@ s1 = Spline.interpolate_cubic(Spline.INTERPOLATION_CHORDAL, pts, Knots(1))
 
 with_added = Spline.interpolate_cubic(Spline.INTERPOLATION_CHORDAL, pts, Knots(1))
 
-# pts = [Vec2(0, 2.5), Vec2(-1, 1), Vec2(1, -1), Vec2(0, -2.5), Vec2(-1, -1), Vec2(1, 1)]
-# s1 = Spline.interpolate_cubic_periodic(pts)
+pts = [Vec2(0, 2.5), Vec2(-1, 1), Vec2(1, -1), Vec2(0, -2.5), Vec2(-1, -1), Vec2(1, 1)]
+s1 = Spline.interpolate_cubic_periodic(pts)
 
 s1.set_color("#0000ff")
 
