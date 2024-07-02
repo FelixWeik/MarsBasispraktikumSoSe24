@@ -65,8 +65,8 @@ p = s.get_polyline_from_control_points()
 p.set_color("blue")
 sc = scene.Scene()
 sc.set_resolution(900)
-#sc.add_element(s)
-#sc.add_element(p)
+sc.add_element(s)
+sc.add_element(p)
 
 # generate a spline that approximates the unit circle
 n = 8
@@ -76,9 +76,6 @@ sc.add_element(circle)
 calculate_circle_deviation(circle)
 circle.periodic = True
 q = circle.get_polyline_from_control_points()
-for i in range(0, 8):
-    circle.insert_knot(i)
-    circle.insert_knot(i)
 
 
 p = circle.get_polyline_from_control_points()
