@@ -236,61 +236,151 @@ class BezierPatches:
             self.patches = new_patches
 
    def visualize_curvature(self, curvature_mode, color_map):
-        # Calculate curvatures at each corner point
+        # coordinates of each corner
+        corners = [(0, 0), (0, 1), (1, 0), (1, 1)]
+
+        # set curvature to maximum or minimum values to update afterwards
+        max_curve_value = float('-inf')
+        min_curve_value = float('inf')
+
+        # for each patch
         for patch in self.patches:
-            corners = [(0, 0), (0, 1), (1, 0), (1, 1)]
-            derivatives = {}
-            for (u, v) in corners:
-                bu = patch.get_derivative('u')
-                bv = patch.get_derivative('v')
-                buu = bu.get_derivative('u')
-                buv = bu.get_derivative('v')
-                bvv = bv.get_derivative('v')
-                derivatives[(u, v)] = (bu, bv, buu, buv, bvv)
-            
-            curvatures = {}
-            for (u, v) in corners:
-                bu, bv, buu, buv, bvv = derivatives[(u, v)]
-                E = Vec3.dot(bu, bu)
-                F = Vec3.dot(bu, bv)
-                G = Vec3.dot(bv, bv)
-                n = Vec3.dot(bu, bv)
-                n = n/abs(n) # normal
-                L = Vec3.dot(buu, n)
-                M = Vec3.dot(buv, n)
-                N = Vec3.dot(bvv, n)
+            # get the degree u and v of the patch
+            u = patch.degree[0]
+            v = patch.degree[1]
 
-                gaussian_curvature = (L * N - M ** 2) / (E * G - F ** 2)
-                mean_curvature = (E * N + G * L - 2 * F * M) / (2 * (E * G - F ** 2))
-                principal_curvature_max = mean_curvature + (mean_curvature ** 2 - gaussian_curvature) ** 0.5
-                principal_curvature_min = mean_curvature - (mean_curvature ** 2 - gaussian_curvature) ** 0.5
+            # 1st partial derivatives
+            du = BezierSurface([u - 1, v])
+            dv = BezierSurface([u, v - 1])
 
-            if curvature_mode == self.CURVATURE_GAUSSIAN:
-                curvature_value = gaussian_curvature
-            elif curvature_mode == self.CURVATURE_AVERAGE:
-                curvature_value = mean_curvature
-            elif curvature_mode == self.CURVATURE_PRINCIPAL_MAX:
-                curvature_value = principal_curvature_max
-            elif curvature_mode == self.CURVATURE_PRINCIPAL_MIN:
-                curvature_value = principal_curvature_min
-            else:
-                raise ValueError("Unknown curvature mode")
-            
-            curvatures[(u, v)] = curvature_value
-            patch.bezier_surface.set_curvature(curvatures[0], curvatures[1], curvatures[2], curvatures[3])
+            # 2nd partial derivatives
+            duu = BezierSurface([u - 2, v])
+            dvv = BezierSurface([u, v - 2])
+            dvu = BezierSurface([u - 1, v - 1])
 
-            # Set colors according to color map
-            for (u, v), curvature_value in curvatures.items():
-                if color_map == self.COLOR_MAP_LINEAR:
-                    color_value = self.f1(curvature_value)
-                elif color_map == self.COLOR_MAP_CUT:
-                    color_value = self.f2(curvature_value, min(curvatures.values()), max(curvatures.values()))
+            # set control points for the 1st partial derivatives
+            for i in range(u):
+                for j in range(v + 1):
+                    # rate of change between consecutive control points in the u direction, scaled by the degree u
+                    du.control_points[i][j] = (patch.control_points[i + 1][j] - patch.control_points[i][j]) * u
+                    # rate of change between consecutive control points in the v direction, scaled by the degree v
+                    dv.control_points[j][i] = (patch.control_points[j][i + 1] - patch.control_points[j][i]) * v
+
+            # set control points for the 2nd partial derivatives
+            # partial derivative of du with respect to u
+            for i in range(u - 1):
+                for j in range(v + 1):
+                    # rate of change between consecutive control points in the u direction, scaled by the degree u - 1
+                    duu.control_points[i][j] = (du.control_points[i + 1][j] - du.control_points[i][j]) * (u - 1)
+            # partial derivative of dv with respect to v
+            for i in range(u):
+                for j in range(v - 1):
+                    # rate of change between consecutive control points in the v direction, scaled by the degree v - 1
+                    dvv.control_points[j][i] = (dv.control_points[j][i + 1] - dv.control_points[j][i]) * (v - 1)
+            # mixed partial derivative of dv with respect to u
+            for i in range(u - 1):
+                for j in range(v):
+                    # rate of change between consecutive control points in the u direction, scaled by the degree u - 1
+                    dvu.control_points[i][j] = (dv.control_points[i + 1][j] - dv.control_points[i][j]) * (u - 1)
+
+            curvatures = [0, 0, 0, 0]
+            # for each corner
+            for corner_index, (c1, c2) in enumerate(corners):
+                # get the control points of each partial derivative of the corner
+                corner_du = du.control_points[c1 * du.degree[0]][c2 * du.degree[1]]
+                corner_dv = dv.control_points[c1 * dv.degree[0]][c2 * dv.degree[1]]
+                corner_duu = duu.control_points[c1 * duu.degree[0]][c2 * duu.degree[1]]
+                corner_dvv = dvv.control_points[c1 * dvv.degree[0]][c2 * dvv.degree[1]]
+                corner_dvu = dvu.control_points[c1 * dvu.degree[0]][c2 * dvu.degree[1]]
+
+                # bu.bu
+                E = corner_du.dot(corner_du)
+                # bu.bv
+                F = corner_du.dot(corner_dv)
+                # bv.bv
+                G = corner_dv.dot(corner_dv)
+
+                # calculate the normal vector
+                N = corner_du.cross(corner_dv).div(corner_du.cross(corner_dv).length())
+
+                # normal.buu
+                e = N.dot(corner_duu)
+                # normal.buv
+                f = N.dot(corner_dvu)
+                # normal.bvv
+                g = N.dot(corner_dvv)
+
+                # calculate the different curvature methods
+                gaussian = (e * g - f * f) / (E * G - F * F)
+
+                average = 0.5 * (e * G - 2 * f * F + g * E) / (E * G - F * F)
+
+                principal1 = average + math.sqrt(average * average - gaussian)
+                principal2 = average - math.sqrt(average * average - gaussian)
+
+                # choose the curvature method according to the parameter
+                if curvature_mode == self.CURVATURE_GAUSSIAN:
+                    curvatures[corner_index] = gaussian
+                elif curvature_mode == self.CURVATURE_AVERAGE:
+                    curvatures[corner_index] = average
+                elif curvature_mode == self.CURVATURE_PRINCIPAL_MAX:
+                    curvatures[corner_index] = max(principal1, principal2)
+                elif curvature_mode == self.CURVATURE_PRINCIPAL_MIN:
+                    curvatures[corner_index] = min(principal1, principal2)
+
+                # update the maximum and minimum curvature values
+                max_curve_value = max(max_curve_value, curvatures[corner_index])
+                min_curve_value = min(min_curve_value, curvatures[corner_index])
+
+            # set the curvatures to the patch
+            patch.set_curvature(*curvatures)
+
+        # for each patch
+        for patch in self.patches:
+            # a color is of the form (r, g, b) with values between 0 an 1
+            colors = [(0, 0, 0), (0, 0, 0), (0, 0, 0), (0, 0, 0)]
+
+            # for each corner
+            for corner_index, (c1, c2) in enumerate(corners):
+                # get the curvature value
+                corner_curve_value = patch.curvature[corner_index]
+
+                # choose the color map method according to the parameter
+                if color_map == self.COLOR_MAP_CUT:
+                    # if the curvature is less than 0, the color is set to 0.
+                    # if it is more than 1, the color is set to 1.
+                    color_curve_value = min(1, max(0, corner_curve_value))
+                elif color_map == self.COLOR_MAP_LINEAR:
+                    # the minimum value of curvature will be mapped to a 0
+                    # the maximum value of curvature will be mapped to a 1
+                    # all the values in between are set linearly
+                    color_curve_value = (corner_curve_value - min_curve_value) / (max_curve_value - min_curve_value)
                 elif color_map == self.COLOR_MAP_CLASSIFICATION:
-                    color_value = self.f3(curvature_value)
-                else:
-                    raise ValueError("Unknown color map")
-                
-                patch.set_color(u, v, color_value)
+                    # this classifies the curvature value into three categories:
+                    # 0 for negative curvature values (less than -0.0001).
+                    # 0.5 for near-zero curvature values (between -0.0001 and 0.0001).
+                    # 1 for positive curvature values (greater than 0.0001)
+                    color_curve_value = 0 if corner_curve_value < -0.0001 else (1 if corner_curve_value > 0.0001 else 0.5)
+
+                colors[corner_index] = BezierPatches.get_rgb_from_color_value(color_curve_value)
+
+            # update the color of the patch
+            patch.set_colors(*colors)
+
+    def get_rgb_from_color_value(value):
+        # from the value, we return a tuple lile (r, g, b)
+        if 0 <= value <= 0.25:
+            # for values between 0 and 0.25, the color transitions from blue to cyan
+            return 0, 4 * value, 1
+        elif 0.25 < value <= 0.5:
+            # for values between 0.25 and 0.5, the color transitions from cyan to green
+            return 0, 1, 2 - 4 * value
+        elif 0.5 < value <= 0.75:
+            # for values between 0.5 and 0.75, the color transitions from green to yellow
+            return 4 * value - 2, 1, 0
+        elif 0.75 < value <= 1:
+            # for values between 0.75 and 1, the color transitions from yellow to red
+            return 1, 4 - 4 * value, 0
 
     def f1(self, curvature_value):
         normalized_curvature = (curvature_value - min(curvature_value.values())) / (max(curvature_value.values()) - min(curvature_value.values()))
